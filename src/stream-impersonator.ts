@@ -25,6 +25,15 @@ export class StreamImpersonator extends Transform {
     super();
 
     this.httpParser = new HTTPParser("REQUEST");
+    const whitelist = process.env.IP_WHITELIST;
+
+    let ipArray:string[] = []
+
+
+    if(whitelist !== undefined && whitelist !== "")
+    {
+      ipArray = whitelist.split(',');
+    }
 
     this.httpParser.onHeadersComplete = (info) => {
       if (this.upgrade) {
@@ -41,6 +50,19 @@ export class StreamImpersonator extends Transform {
 
       let token: string | null = null;
       const authIndex = headers.findIndex((h) => h[0] === "authorization");
+
+      const ipIndex = headers.findIndex((h) => h[0] === "x-forwarded-for");
+      const ip = headers[ipIndex][1].trim();
+
+      //If not coming from an acceptable IP, reject
+      if(ipArray.length > 0 && ipArray.includes(ip) === false)
+      {
+        logger.info('[AUDIT] ip address ' + ip + ' NOT found in whitelist');
+        this.flushChunks();
+      }
+      else{
+        logger.info('[AUDIT] ip address ' + ip + ' found in whitelist');
+      }
 
       if (authIndex !== -1) {
         token = headers[authIndex][1].trim().replace("Bearer ", "");
